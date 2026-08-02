@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use winit::{application::ApplicationHandler, error::EventLoopError, event::WindowEvent, event_loop::{ActiveEventLoop, ControlFlow, EventLoop}, window::{Window, WindowId}};
 
-use crate::context::Context;
+use crate::{context::Context, drawing::Vertex};
 
 pub trait App {
 	fn update(&mut self, ctx: &mut Context);
@@ -39,6 +39,10 @@ struct WindowState {
 	device: wgpu::Device,
 	queue: wgpu::Queue,
 	config: wgpu::SurfaceConfiguration,
+	render_pipeline: wgpu::RenderPipeline,
+	vertex_buffer: wgpu::Buffer,
+	indexx_buffer: wgpu::Buffer,
+	staging_belt: wgpu::util::StagingBelt, // for performance
 }
 
 impl WindowState {
@@ -76,7 +80,7 @@ impl WindowState {
 
 		let config = wgpu::SurfaceConfiguration {
 			usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-			format: wgpu::TextureFormat::Bgra8UnormSrgb,
+			format: wgpu::TextureFormat::Rgba8UnormSrgb,
 			width: size.width,
 			height: size.height,
 			present_mode: wgpu::PresentMode::AutoVsync,
@@ -87,7 +91,64 @@ impl WindowState {
 		};
 		surface.configure(&device, &config);
 
-		Self { window, surface, device, queue, config }
+		let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
+		let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+			label: None,
+			layout: Some(&device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+				label: None,
+				bind_group_layouts: &[],
+				immediate_size: 0,
+			})),
+			vertex: wgpu::VertexState {
+				module: &shader,
+				entry_point: None,
+				buffers: &[ Some(wgpu::VertexBufferLayout {
+					array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
+					step_mode: wgpu::VertexStepMode::Vertex,
+					attributes: &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2, 2 => Unorm8x4],
+				}) ],
+				compilation_options: wgpu::PipelineCompilationOptions::default()
+			},
+			fragment: Some(wgpu::FragmentState {
+				module: &shader,
+				entry_point: None,
+				compilation_options: wgpu::PipelineCompilationOptions::default(),
+				targets: &[Some(wgpu::ColorTargetState {
+					format: config.format,
+					blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+					write_mask: wgpu::ColorWrites::ALL
+				})]
+			}),
+			primitive: wgpu::PrimitiveState {
+				topology: wgpu::PrimitiveTopology::TriangleList,
+				strip_index_format: None,
+				front_face: wgpu::FrontFace::Ccw,
+				cull_mode: None,
+				polygon_mode: wgpu::PolygonMode::Fill,
+				unclipped_depth: false,
+				conservative: false
+			},
+			depth_stencil: None,
+			multisample: wgpu::MultisampleState::default(),
+			multiview_mask: None,
+			cache: None
+		});
+
+		let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+			label: None,
+			size: 0x1000000,
+			usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+			mapped_at_creation: false,
+		});
+		let indexx_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+			label: None,
+			size: 0x1000000,
+			usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+			mapped_at_creation: false,
+		});
+		let staging_belt = wgpu::util::StagingBelt::new(device.clone(), 0x40000);
+
+		Self { window, surface, device, queue, config, render_pipeline, vertex_buffer, indexx_buffer, staging_belt }
 	}
 
 	fn resize(&mut self, width: u32, height: u32) {
@@ -96,7 +157,7 @@ impl WindowState {
 		self.surface.configure(&self.device, &self.config);
 	}
 
-	fn render(&mut self, _context: &Context) {
+	fn render(&mut self, context: &Context) {
 		let output = match self.surface.get_current_texture() {
 			wgpu::CurrentSurfaceTexture::Success(texture) => texture,
 			wgpu::CurrentSurfaceTexture::Suboptimal(surface_texture) => { self.surface.configure(&self.device, &self.config); surface_texture },
@@ -105,8 +166,16 @@ impl WindowState {
 		};
 		let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
 		let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+
 		{
-			encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+			// push mesh data
+			let vertex_slice = bytemuck::cast_slice(&context.draw_list.vertices);
+			let indexx_slice = bytemuck::cast_slice(&context.draw_list.indices );
+			self.staging_belt.write_buffer(&mut encoder, &self.vertex_buffer, 0, wgpu::BufferSize::new(vertex_slice.len() as u64).unwrap()).copy_from_slice(vertex_slice);
+			self.staging_belt.write_buffer(&mut encoder, &self.indexx_buffer, 0, wgpu::BufferSize::new(indexx_slice.len() as u64).unwrap()).copy_from_slice(indexx_slice);
+			self.staging_belt.finish();
+
+			let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
 				label: None,
 				color_attachments: &[Some(wgpu::RenderPassColorAttachment {
 					view: &view,
@@ -127,8 +196,14 @@ impl WindowState {
 				occlusion_query_set: None,
 				multiview_mask: None,
 			});
+			render_pass.set_pipeline(&self.render_pipeline);
+			render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+			render_pass.set_index_buffer(self.indexx_buffer.slice(..), wgpu::IndexFormat::Uint16);
+			render_pass.draw_indexed(0..context.draw_list.indices.len() as u32, 0, 0..1);
 		}
+
 		self.queue.submit(std::iter::once(encoder.finish()));
+		self.staging_belt.recall();
 		self.queue.present(output);
 	}
 }

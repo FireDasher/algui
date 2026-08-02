@@ -2,6 +2,9 @@ use glam::{Vec2, vec2};
 
 use crate::Rect;
 
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "bytemuck", derive(bytemuck::Pod, bytemuck::Zeroable))]
 pub struct Vertex {
 	pub pos: Vec2,
 	pub uv: Vec2,
@@ -19,7 +22,7 @@ impl Vertex {
 #[derive(Default)]
 pub struct DrawList {
 	pub vertices: Vec<Vertex>,
-	pub indices: Vec<u16>,
+	pub indices:  Vec<u16   >,
 }
 
 impl DrawList {

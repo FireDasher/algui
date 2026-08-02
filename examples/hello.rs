@@ -19,8 +19,9 @@ impl App for MyApp {
 		// 		self.counter += 1;
 		// 	}
 		// });
-		ctx.draw_list.add_rect(Rect::new(Vec2::splat(100.0), Vec2::splat(300.0)), 0xFF8000FF);
-		ctx.draw_list.add_rect(Rect::new(Vec2::splat(150.0), Vec2::splat(350.0)), 0x0000FFFF);
+		ctx.draw_list.add_rect(Rect::new(Vec2::splat(100.0), Vec2::splat(300.0)), ctx.colors.button);
+		ctx.draw_list.add_rect(Rect::new(Vec2::splat(150.0), Vec2::splat(350.0)), 0xFF0000FF);
+		println!("{:?}, {:?}", ctx.draw_list.vertices, ctx.draw_list.indices);
 		println!("I am updating!");
 	}
 }
