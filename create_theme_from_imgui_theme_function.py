@@ -222,7 +222,7 @@ colors[ImGuiCol_NavWindowingDimBg]      = ImVec4(0.20f, 0.20f, 0.20f, 0.20f);
 colors[ImGuiCol_ModalWindowDimBg]       = ImVec4(0.20f, 0.20f, 0.20f, 0.35f);
 """
 
-theme_code = theme_code_light # choose which one to process
+theme_code = theme_code_dark # choose which one to process
 
 clean_formatting = True # whether or not to use newlines after each one or pack everything into a single line of code
 
@@ -259,7 +259,7 @@ result = [f"Self {{{sep}"]
 
 for (key, color) in colors.items():
 	pascal_case = "".join([f"_{c.lower()}" if c.isupper() else c for c in key.removeprefix("ImGuiCol_")]).removeprefix("_")
-	result.append(f"{indent}{pascal_case}: vec4({color.r:.2f}, {color.g:.2f}, {color.b:.2f}, {color.a:.2f}),{sep}")
+	result.append(f"{indent}{pascal_case}: color({color.r:.2f}, {color.g:.2f}, {color.b:.2f}, {color.a:.2f}),{sep}")
 
 if not clean_formatting:
 	result[-1] = result[-1].removesuffix(", ") + " "
