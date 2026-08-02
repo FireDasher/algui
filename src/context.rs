@@ -5,7 +5,7 @@ use crate::Rect;
 
 #[derive(Default)]
 pub struct Context {
-	colors: Colors,
-	draw_list: DrawList
+	pub colors: Colors,
+	pub draw_list: DrawList
 }
 

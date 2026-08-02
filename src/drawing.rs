@@ -23,6 +23,11 @@ pub struct DrawList {
 }
 
 impl DrawList {
+	pub fn clear(&mut self) {
+		self.vertices.clear();
+		self.indices.clear();
+	}
+
 	#[inline]
 	fn idx_tri(&mut self, a: u16, b: u16, c: u16) {
 		self.indices.push(a);
