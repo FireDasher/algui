@@ -2,6 +2,8 @@
 
 use std::sync::Arc;
 
+use glam::vec2;
+use wgpu::util::DeviceExt;
 use winit::{application::ApplicationHandler, error::EventLoopError, event::WindowEvent, event_loop::{ActiveEventLoop, ControlFlow, EventLoop}, window::{Window, WindowId}};
 
 use crate::{context::Context, drawing::Vertex};
@@ -39,10 +41,11 @@ struct WindowState {
 	device: wgpu::Device,
 	queue: wgpu::Queue,
 	config: wgpu::SurfaceConfiguration,
+	uniform_buffer: wgpu::Buffer,
+	uniform_bind_group: wgpu::BindGroup,
 	render_pipeline: wgpu::RenderPipeline,
 	vertex_buffer: wgpu::Buffer,
-	indexx_buffer: wgpu::Buffer,
-	staging_belt: wgpu::util::StagingBelt, // for performance
+	index_buffer: wgpu::Buffer,
 }
 
 impl WindowState {
@@ -80,7 +83,7 @@ impl WindowState {
 
 		let config = wgpu::SurfaceConfiguration {
 			usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-			format: wgpu::TextureFormat::Rgba8UnormSrgb,
+			format: wgpu::TextureFormat::Bgra8UnormSrgb, // for some reason colors uploaded to the GPU are in ABGR even if this is set to Rgba8UnormSrgb, but BGRA is guaranteed to be supported
 			width: size.width,
 			height: size.height,
 			present_mode: wgpu::PresentMode::AutoVsync,
@@ -92,11 +95,44 @@ impl WindowState {
 		surface.configure(&device, &config);
 
 		let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
+
+		let size = window.inner_size();
+		let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+			label: Some("Uniform Buffer"),
+			contents: bytemuck::cast_slice(&[vec2(2.0 / size.width as f32, -2.0 / size.height as f32), vec2(-1.0, 1.0)]),
+			usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+		});
+		let uniform_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+			label: Some("Uniform Bind Group Layout"),
+			entries: &[
+				wgpu::BindGroupLayoutEntry {
+					binding: 0,
+					visibility: wgpu::ShaderStages::VERTEX,
+					ty: wgpu::BindingType::Buffer {
+						ty: wgpu::BufferBindingType::Uniform,
+						has_dynamic_offset: false,
+						min_binding_size: None
+					},
+					count: None,
+				}
+			]
+		});
+		let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+			label: Some("Uniform Bind Group"),
+			layout: &uniform_bind_group_layout,
+			entries: &[
+				wgpu::BindGroupEntry {
+					binding: 0,
+					resource: uniform_buffer.as_entire_binding(),
+				}
+			]
+		});
+
 		let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
 			label: None,
 			layout: Some(&device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
 				label: None,
-				bind_group_layouts: &[],
+				bind_group_layouts: &[Some(&uniform_bind_group_layout)],
 				immediate_size: 0,
 			})),
 			vertex: wgpu::VertexState {
@@ -135,26 +171,27 @@ impl WindowState {
 		});
 
 		let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-			label: None,
+			label: Some("Vertex Buffer"),
 			size: 0x1000000,
 			usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
 			mapped_at_creation: false,
 		});
-		let indexx_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-			label: None,
+		let index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+			label: Some("Index Buffer"),
 			size: 0x1000000,
 			usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
 			mapped_at_creation: false,
 		});
-		let staging_belt = wgpu::util::StagingBelt::new(device.clone(), 0x40000);
 
-		Self { window, surface, device, queue, config, render_pipeline, vertex_buffer, indexx_buffer, staging_belt }
+		Self { window, surface, device, queue, config, uniform_buffer, uniform_bind_group, render_pipeline, vertex_buffer, index_buffer }
 	}
 
 	fn resize(&mut self, width: u32, height: u32) {
 		self.config.width = width;
 		self.config.height = height;
 		self.surface.configure(&self.device, &self.config);
+		let size = self.window.inner_size();
+		self.queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[vec2(2.0 / size.width as f32, -2.0 / size.height as f32), vec2(-1.0, 1.0)]));
 	}
 
 	fn render(&mut self, context: &Context) {
@@ -170,10 +207,10 @@ impl WindowState {
 		{
 			// push mesh data
 			let vertex_slice = bytemuck::cast_slice(&context.draw_list.vertices);
-			let indexx_slice = bytemuck::cast_slice(&context.draw_list.indices );
-			self.staging_belt.write_buffer(&mut encoder, &self.vertex_buffer, 0, wgpu::BufferSize::new(vertex_slice.len() as u64).unwrap()).copy_from_slice(vertex_slice);
-			self.staging_belt.write_buffer(&mut encoder, &self.indexx_buffer, 0, wgpu::BufferSize::new(indexx_slice.len() as u64).unwrap()).copy_from_slice(indexx_slice);
-			self.staging_belt.finish();
+			let index_slice = bytemuck::cast_slice(&context.draw_list.indices );
+
+			self.queue.write_buffer(&self.vertex_buffer, 0, vertex_slice);
+			self.queue.write_buffer(&self.index_buffer, 0, index_slice);
 
 			let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
 				label: None,
@@ -197,13 +234,13 @@ impl WindowState {
 				multiview_mask: None,
 			});
 			render_pass.set_pipeline(&self.render_pipeline);
+			render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
 			render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-			render_pass.set_index_buffer(self.indexx_buffer.slice(..), wgpu::IndexFormat::Uint16);
+			render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 			render_pass.draw_indexed(0..context.draw_list.indices.len() as u32, 0, 0..1);
 		}
 
 		self.queue.submit(std::iter::once(encoder.finish()));
-		self.staging_belt.recall();
 		self.queue.present(output);
 	}
 }
@@ -220,6 +257,9 @@ impl<UserState: App> ApplicationHandler for AlguiWinit<UserState> {
 		let window = event_loop.create_window(Window::default_attributes().with_title(&self.title)).unwrap();
 		let state = pollster::block_on(WindowState::new(Arc::new(window)));
 		self.window_state = Some(state);
+	}
+	fn suspended(&mut self, _event_loop: &ActiveEventLoop) {
+		self.window_state = None; // drop everything
 	}
 	fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
 		if let Some(state) = &mut self.window_state && window_id == state.window.id() {

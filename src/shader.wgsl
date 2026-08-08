@@ -1,3 +1,8 @@
+struct Uniforms {
+	scale: vec2f,
+	translation: vec2f,
+}
+
 struct VertexInput {
 	@location(0) position: vec2f,
 	@location(1) uv: vec2f,
@@ -9,9 +14,11 @@ struct VertexOutput {
 	@location(0) color: vec4f,
 };
 
+@group(0) @binding(0) var<uniform> uniforms: Uniforms;
+
 @vertex
 fn vs_main(model: VertexInput) -> VertexOutput {
-	return VertexOutput(vec4f(model.position * vec2f(0.00104166667, -0.00185185185) + vec2f(-1.0, 1.0), 0.0, 1.0), model.color);
+	return VertexOutput(vec4f(model.position * uniforms.scale + uniforms.translation, 0.0, 1.0), model.color);
 }
 
 @fragment
