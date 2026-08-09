@@ -63,8 +63,8 @@ impl Rect {
 
 	#[inline]
 	#[must_use]
-	pub fn cornered(corner: Vec2, size: Vec2) -> Self {
-		Self { min: corner, max: corner + size }
+	pub fn sized(pos: Vec2, size: Vec2) -> Self {
+		Self { min: pos, max: pos + size }
 	}
 
 	// getters

@@ -19,13 +19,16 @@ mod context;
 mod ui;
 mod storage;
 mod drawing;
+mod font;
 mod input;
+pub mod containers;
+pub mod widgets;
 
 pub use rect::Rect;
 pub use colors::Colors;
 pub use context::Context;
 pub use ui::Ui;
+pub use storage::Storage;
+pub use drawing::DrawList;
+pub use font::Font;
 pub use input::Response;
-
-pub mod containers;
-pub mod widgets;
