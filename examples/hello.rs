@@ -1,5 +1,4 @@
-use algui::{Context, Rect, containers::Window, platform::{App, AppBuilder}, widgets::Button};
-use glam::{Vec2, vec2};
+use algui::{Context, Window, platform::{App, AppBuilder}};
 
 fn main() {
 	AppBuilder::new("My AlGui App").show(MyApp::default()).unwrap();
@@ -13,8 +12,8 @@ struct MyApp {
 impl App for MyApp {
 	fn update(&mut self, ctx: &mut Context) {
 		Window::new("Title").show(ctx, |ui| {
-			ui.label(format!("Counter: {}", self.counter));
-			if ui.button("Hello, World!") {
+			ui.label(&format!("Counter: {}", self.counter));
+			if ui.button("Hello, World!").clicked {
 				println!("clicked button");
 				self.counter += 1;
 			}

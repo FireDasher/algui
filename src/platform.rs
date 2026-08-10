@@ -18,8 +18,8 @@ pub struct AppBuilder {
 }
 
 impl AppBuilder {
-	pub fn new(title: impl Into<String>) -> AppBuilder {
-		AppBuilder{ title: title.into(), always_update: false }
+	pub fn new(title: &str) -> AppBuilder {
+		AppBuilder{ title: title.to_string(), always_update: false }
 	}
 
 	pub fn always_update(mut self) -> Self {

@@ -1,14 +1,4 @@
-/// 32-bit FNV-1a hash
-#[inline]
-#[must_use]
-fn fnv(data: &[u8]) -> u32 {
-	let mut v: u32 = 0x811C9DC5;
-	for &byte in data {
-		v ^= byte as u32;
-		v = v.wrapping_mul(0x01000193);
-	}
-	v
-}
+mod id;
 
 #[cfg(feature = "platform")]
 pub mod platform;
@@ -21,8 +11,7 @@ mod storage;
 mod drawing;
 mod font;
 mod input;
-pub mod containers;
-pub mod widgets;
+mod containers;
 
 pub use rect::Rect;
 pub use colors::Colors;
@@ -32,3 +21,4 @@ pub use storage::Storage;
 pub use drawing::DrawList;
 pub use font::Font;
 pub use input::Response;
+pub use containers::Window;
