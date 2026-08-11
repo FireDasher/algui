@@ -59,14 +59,3 @@ impl<Value> Storage<Value> {
 		}
 	}
 }
-
-impl<Value: Default + Clone> Storage<Value> {
-	pub fn get_or_default(&self, key: u32) -> Value {
-		let lo = self.lower_bound(key);
-		if lo < self.data.len() && self.data[lo].0 == key {
-			self.data[lo].1.clone()
-		} else {
-			Default::default()
-		}
-	}
-}

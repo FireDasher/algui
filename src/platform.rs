@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use glam::vec2;
 use wgpu::util::DeviceExt;
-use winit::{application::ApplicationHandler, error::EventLoopError, event::WindowEvent, event_loop::{ActiveEventLoop, ControlFlow, EventLoop}, window::{Window, WindowId}};
+use winit::{application::ApplicationHandler, error::EventLoopError, event::{MouseButton, WindowEvent}, event_loop::{ActiveEventLoop, ControlFlow, EventLoop}, window::{Window, WindowId}};
 
 use crate::{context::Context, drawing::Vertex};
 
@@ -268,9 +268,34 @@ impl<UserState: App> ApplicationHandler for AlguiWinit<UserState> {
 				WindowEvent::RedrawRequested => {
 					self.context.draw_list.clear();
 					self.state.update(&mut self.context);
+					self.context.input.mouse_left_clicked = false;
+					self.context.input.mouse_left_released = false;
+					self.context.input.mouse_right_clicked = false;
+					self.context.input.mouse_right_released = false;
 					state.render(&self.context);
+					state.window.request_redraw();
 				},
 				WindowEvent::Resized(size) => state.resize(size.width, size.height),
+				WindowEvent::CursorMoved { position, .. } => self.context.input.mouse_pos = vec2(position.x as f32, position.y as f32),
+				WindowEvent::MouseInput { state: button_state, button, .. } => match button {
+					MouseButton::Left => {
+						self.context.input.mouse_left_down = button_state.is_pressed();
+						if button_state.is_pressed() {
+							self.context.input.mouse_left_clicked = true;
+						} else {
+							self.context.input.mouse_left_released = true;
+						}
+					},
+					MouseButton::Right => {
+						self.context.input.mouse_right_down = button_state.is_pressed();
+						if button_state.is_pressed() {
+							self.context.input.mouse_right_clicked = true;
+						} else {
+							self.context.input.mouse_right_released = true;
+						}
+					},
+					_ => (),
+				},
 				_ => (),
 			}
 		}

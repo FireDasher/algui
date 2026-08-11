@@ -1,4 +1,4 @@
-use algui::{Context, Window, platform::{App, AppBuilder}};
+use algui::{Context, platform::{App, AppBuilder}};
 
 fn main() {
 	AppBuilder::new("My AlGui App").show(MyApp::default()).unwrap();
@@ -11,12 +11,20 @@ struct MyApp {
 
 impl App for MyApp {
 	fn update(&mut self, ctx: &mut Context) {
-		Window::new("Title").show(ctx, |ui| {
+		ctx.window("Example Window", |ui| {
 			ui.label(&format!("Counter: {}", self.counter));
 			if ui.button("Hello, World!").clicked {
 				println!("clicked button");
 				self.counter += 1;
 			}
+			ui.same_line();
+			if ui.button("Goodbye, Moon!").clicked {
+				println!("clicked EVIL button");
+				self.counter -= 1;
+			}
+			ui.same_line();
+			ui.button("Other Button");
+			ui.button("Not a button!");
 		});
 	}
 }

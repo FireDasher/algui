@@ -1,4 +1,4 @@
-mod id;
+pub mod id;
 
 #[cfg(feature = "platform")]
 pub mod platform;
@@ -11,7 +11,6 @@ mod storage;
 mod drawing;
 mod font;
 mod input;
-mod containers;
 
 pub use rect::Rect;
 pub use colors::Colors;
@@ -21,4 +20,3 @@ pub use storage::Storage;
 pub use drawing::DrawList;
 pub use font::Font;
 pub use input::Response;
-pub use containers::Window;

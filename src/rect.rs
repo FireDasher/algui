@@ -117,6 +117,17 @@ impl Rect {
 
 	#[inline]
 	#[must_use]
+	pub fn shrink(&self, amount: f32) -> Rect {
+		Rect { min: self.min + amount, max: self.max - amount }
+	}
+	#[inline]
+	#[must_use]
+	pub fn grow(&self, amount: f32) -> Rect {
+		Rect { min: self.min - amount, max: self.max + amount }
+	}
+
+	#[inline]
+	#[must_use]
 	pub fn chop_left(&self, pos: f32) -> Rect {
 		Rect { min: self.min, max: vec2(pos, self.max.y) }
 	}
